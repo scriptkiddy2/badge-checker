@@ -127,11 +127,21 @@ async function main(){
 
       const data = await res.json();
 
-      const arr = Array.isArray(data)
-        ? data
-        : data.badges || data.data || [];
-
-      map.set(String(u), new Set(arr.map(Number)));
+      let arr = [];
+      
+      if (Array.isArray(data)) {
+        arr = data;
+      }
+      else if (Array.isArray(data.badges)) {
+        arr = data.badges;
+      }
+      else if (Array.isArray(data.data)) {
+        arr = data.data.map(x => x.badge_id || x.id);
+      }
+      
+      console.log("Badges from API:", arr);
+      
+      map.set(String(u), new Set(arr.map(x => parseInt(x,10))));
     })
   );
 
@@ -141,7 +151,7 @@ async function main(){
 
   for(let i=1;i<rows.length;i++){
     const r = rows[i];
-    const badge = Number(r[badgeCol]);
+    const badge = parseInt(r[badgeCol], 10);
     const uni = String(r[uniCol] || DEFAULT_UNIVERSE);
 
     const owned = map.get(uni)?.has(badge);
