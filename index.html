@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Roblox Badge Checker</title>
+
+<style>
+body{
+  font-family: Arial;
+  background:#f4f6fb;
+  padding:30px;
+}
+
+h1{margin-bottom:20px}
+
+input,button{
+  padding:6px 10px;
+  margin:6px 0;
+}
+
+button{
+  cursor:pointer;
+}
+
+table{
+  border-collapse:collapse;
+  width:100%;
+  background:white;
+  margin-top:20px;
+}
+
+th,td{
+  border:1px solid #ddd;
+  padding:8px;
+}
+
+th{background:#eee}
+
+tr.badge-owned{
+  background:#c8ffd1;
+}
+
+tr:hover{
+  background:#eef;
+}
+
+.status{
+  font-weight:bold;
+  margin-top:10px;
+}
+
+.error{color:red}
+</style>
+</head>
+
+<body>
+
+<h1>🏆 Roblox Badge Checker</h1>
+
+<label>
+Roblox User ID:
+<input id="userid" type="number" placeholder="257770975">
+</label>
+
+<br>
+
+<button onclick="main()">Check badges</button>
+
+<div id="status" class="status"></div>
+<div id="table"></div>
+
+<script>
+const GOOGLE_KEY = "AIzaSyA--6tN4m7UM0FwQyrzZ-OYbEZHfBL3YF0";
+const SHEET_ID = "17HE0xTN5tuq8BAkwvtP17tlJW8rpFNI3WzbI4LYXchk";
+const RANGE = "Main List";
+
+const WORKER_URL = "https://icy-shadow-34fb.max-kash2008.workers.dev";
+
+const TOWER_API_KEY = "fb82a33a-d2c9-4ea4-8514-eb09c3743ce9-04f66ae0-cb4b-4777-8eed-13993e12333e";
+
+const DEFAULT_UNIVERSE = 3264581003;
+
+const statusEl = document.getElementById("status");
+const tableEl = document.getElementById("table");
+
+function status(t,err=false){
+  statusEl.textContent=t;
+  statusEl.className = "status " + (err?"error":"");
+}
+
+async function main(){
+
+  const userId = Number(document.getElementById("userid").value);
+  if(!userId) return status("Enter valid ID",true);
+
+  status("Loading sheet...");
+
+  const sheet = await fetch(
+`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${GOOGLE_KEY}`
+  ).then(r=>r.json());
+
+  const rows = sheet.values;
+  const headers = rows[0];
+
+  const badgeCol = headers.findIndex(h=>/badge|бейдж/i.test(h));
+  const uniCol = headers.findIndex(h=>/universe|game/i.test(h));
+
+  const universes = [...new Set(
+    rows.slice(1).map(r=>r[uniCol] || DEFAULT_UNIVERSE)
+  )];
+
+  status("Checking badges...");
+
+  const map = new Map();
+
+  await Promise.all(
+    universes.map(async u=>{
+      const res = await fetch(WORKER_URL,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          userId:userId,
+          universeId:Number(u),
+          apiKey:TOWER_API_KEY
+        })
+      });
+
+      const data = await res.json();
+
+      const arr = Array.isArray(data)
+        ? data
+        : data.badges || data.data || [];
+
+      map.set(String(u), new Set(arr.map(Number)));
+    })
+  );
+
+  let html="<table><tr>";
+  headers.forEach(h=> html+=`<th>${h}</th>`);
+  html+="</tr>";
+
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    const badge = Number(r[badgeCol]);
+    const uni = String(r[uniCol] || DEFAULT_UNIVERSE);
+
+    const owned = map.get(uni)?.has(badge);
+
+    html+= `<tr class="${owned?'badge-owned':''}">`;
+
+    r.forEach(c=> html+=`<td>${c||""}</td>`);
+
+    html+="</tr>";
+  }
+
+  html+="</table>";
+
+  tableEl.innerHTML=html;
+
+  status("Done ✓");
+}
+</script>
+
+</body>
+</html>
