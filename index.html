@@ -1,99 +1,200 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Roblox Badge Checker</title>
-<style>
-body{font-family:Arial;margin:20px}
-input,button{padding:6px;margin:4px 0}
-button{cursor:pointer}
-table{border-collapse:collapse;width:100%;margin-top:20px;background:#fff}
-th,td{border:1px solid #ddd;padding:8px;text-align:left}
-th{background:#eee}
-tr.badge-owned{background:#c8ffd1}
-tr:hover{background:#eef}
-.status{margin-top:10px;font-weight:bold}
-.error{color:red}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Badge Checker Pro</title>
+    <style>
+        :root {
+            --primary: #00a2ff;
+            --success: #c8ffd1;
+            --danger: #ffcfcf;
+            --bg: #f4f4f9;
+            --warning: #fff3cd;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: var(--bg); color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { margin-top: 0; color: #111; display: flex; align-items: center; gap: 10px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        input { flex: 1; min-width: 200px; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; outline: none; transition: border-color 0.2s; }
+        input:focus { border-color: var(--primary); }
+        button { padding: 12px 24px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        .status { padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: 500; display: none; }
+        .status.info { display: block; background: #e3f2fd; color: #0d47a1; }
+        .status.error { display: block; background: var(--danger); color: #b71c1c; }
+        .status.warning { display: block; background: var(--warning); color: #856404; border: 1px solid #ffeeba; }
+        
+        .table-container { overflow-x: auto; margin-top: 20px; border-radius: 8px; border: 1px solid #ddd; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border-bottom: 1px solid #eee; padding: 12px 15px; text-align: left; }
+        th { background: #f8f9fa; font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        tr.badge-owned { background-color: var(--success) !important; }
+        tr.badge-owned td:first-child::before { content: "✅ "; }
+        tr:hover { background: #fcfcfc; }
+        
+        .loader { width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid var(--primary); border-radius: 50%; display: inline-block; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
 
-<h1>🏆 Roblox Badge Checker</h1>
+<div class="container">
+    <h1>🏆 Badge Checker</h1>
+    
+    <div class="input-group">
+        <input type="number" id="userid" placeholder="Введите Roblox User ID (например: 257770975)">
+        <button id="checkBtn" onclick="checkBadges()">Проверить бейджи</button>
+    </div>
 
-<label>Roblox User ID: <input type="number" id="userid" placeholder="257770975"></label><br>
-<button onclick="checkBadges()">Check badges</button>
-
-<div id="status" class="status"></div>
-<div id="table"></div>
+    <div id="status" class="status"></div>
+    
+    <div class="table-container" id="tableContainer" style="display:none;">
+        <table id="resultsTable">
+            <thead><tr id="tableHeader"></tr></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
 
 <script>
-const GOOGLE_KEY = "AIzaSyA--6tN4m7UM0FwQyrzZ-OYbEZHfBL3YF0";
-const SHEET_ID = "17HE0xTN5tuq8BAkwvtP17tlJW8rpFNI3WzbI4LYXchk";
-const RANGE = "Main List";
-const WORKER_URL = "https://icy-shadow-34fb.max-kash2008.workers.dev";
-const TOWER_API_KEY = "fb82a33a-d2c9-4ea4-8514-eb09c3743ce9-04f66ae0-cb4b-4777-8eed-13993e12333e";
+const CONFIG = {
+    GOOGLE_KEY: "AIzaSyA--6tN4m7UM0FwQyrzZ-OYbEZHfBL3YF0",
+    SHEET_ID: "17HE0xTN5tuq8BAkwvtP17tlJW8rpFNI3WzbI4LYXchk",
+    RANGE: "Main List",
+    WORKER_URL: "https://icy-shadow-34fb.max-kash2008.workers.dev",
+    TOWER_API_KEY: "e8216559-7baa-4447-8bf4-8148110345e9-841fee72-065f-4133-b8c0-2e6e95a15a40"
+};
 
 const statusEl = document.getElementById("status");
-const tableEl = document.getElementById("table");
+const btn = document.getElementById("checkBtn");
 
-function status(msg,err=false){statusEl.textContent=msg;statusEl.className="status "+(err?"error":"");}
+function updateStatus(msg, type = "info") {
+    if (!msg) {
+        statusEl.style.display = "none";
+        return;
+    }
+    statusEl.textContent = msg;
+    statusEl.className = `status ${type}`;
+    if(type === "info") {
+        statusEl.innerHTML = `<span class="loader"></span> ${msg}`;
+    }
+}
 
-async function checkBadges(){
-  const userId = Number(document.getElementById("userid").value);
-  if(!userId) return status("Enter valid Roblox User ID",true);
-  status("Loading spreadsheet...");
+async function checkBadges() {
+    const userIdInput = document.getElementById("userid").value;
+    const userId = parseInt(userIdInput, 10);
+    
+    if (!userId) return updateStatus("Пожалуйста, введите корректный User ID", "error");
 
-  // 🔹 Load sheet
-  let data;
-  try{
-    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${GOOGLE_KEY}`);
-    data = await res.json();
-  }catch(e){return status("Failed to load sheet",true);}
-  const rows = data.values;
-  if(!rows || rows.length<2) return status("Spreadsheet is empty",true);
+    btn.disabled = true;
+    updateStatus("Загрузка данных из таблицы...");
 
-  const headers = rows[0];
-  const badgeCol = headers.findIndex(h=>/badge|бейдж/i.test(h));
-  if(badgeCol===-1) return status("No badge column found",true);
+    try {
+        const sheetUrl = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.RANGE}?key=${CONFIG.GOOGLE_KEY}`;
+        const sheetRes = await fetch(sheetUrl);
+        const data = await sheetRes.json();
 
-  // 🔹 Extract all badge IDs from links
-  const badgeIds = [];
-  for(let i=1;i<rows.length;i++){
-    const url = rows[i][badgeCol];
-    const match = url ? url.match(/\/badges\/(\d+)\//) : null;
-    if(match) badgeIds.push(parseInt(match[1],10));
-  }
+        if (data.error) throw new Error(data.error.message);
+        const rows = data.values;
+        if (!rows || rows.length < 2) throw new Error("Таблица пуста или недоступна");
 
-  status("Checking badges via TowerStats...");
-  let ownedBadges=[];
-  try{
-    const res = await fetch(WORKER_URL,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({id:userId,badges:badgeIds,apiKey:TOWER_API_KEY})
-    });
-    ownedBadges = await res.json();
-  }catch(e){return status("Failed to fetch badges",true);}
+        const headers = rows[0];
+        const badgeColIndex = headers.findIndex(h => /badge|бейдж|ссылка|id|айди/i.test(h));
+        
+        if (badgeColIndex === -1) throw new Error("Столбец с ID бейджей не найден.");
 
-  const badgesSet = new Set(ownedBadges);
+        const badgeMap = []; 
+        const badgeIds = [];
 
-  // 🔹 Build table
-  let html="<table><tr>";
-  headers.forEach(h=>html+=`<th>${h}</th>`);
-  html+="</tr>";
-  for(let i=1;i<rows.length;i++){
-    const row = rows[i];
-    const url = row[badgeCol];
-    const match = url ? url.match(/\/badges\/(\d+)\//) : null;
-    const badgeId = match ? parseInt(match[1],10) : null;
-    const isOwned = badgeId && badgesSet.has(badgeId);
-    html+=`<tr class="${isOwned?'badge-owned':''}">`;
-    row.forEach(c=>html+=`<td>${c||''}</td>`);
-    html+="</tr>";
-  }
-  html+="</table>";
-  tableEl.innerHTML=html;
-  status("Done!");
+        for (let i = 1; i < rows.length; i++) {
+            const cellValue = String(rows[i][badgeColIndex] || "").trim();
+            let bId = null;
+            const urlMatch = cellValue.match(/badges\/(\d+)/);
+            if (urlMatch) {
+                bId = parseInt(urlMatch[1], 10);
+            } else if (/^\d+$/.test(cellValue)) {
+                bId = parseInt(cellValue, 10);
+            }
+            
+            badgeMap.push({ rowIndex: i, badgeId: bId });
+            if (bId) badgeIds.push(bId);
+        }
+
+        if (badgeIds.length === 0) throw new Error("ID бейджей не найдены.");
+
+        updateStatus(`Проверка ${badgeIds.length} бейджей через TowerStats...`);
+
+        const payload = {
+            id: userId,
+            badges: badgeIds.map(id => Number(id)),
+            apiKey: CONFIG.TOWER_API_KEY
+        };
+
+        const workerRes = await fetch(CONFIG.WORKER_URL, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await workerRes.json();
+
+        // If credits are empty, we tell the user clearly.
+        if (result.error === "Insufficient credits") {
+            updateStatus("TowerStats: Лимит запросов исчерпан (Insufficient credits). Попробуйте позже.", "error");
+            // Still render the table so they can see the list, even if ownership isn't checked
+            renderTable(headers, rows, badgeMap, new Set());
+            return;
+        } else if (result.error) {
+            throw new Error(`Ошибка сервера: ${result.error}`);
+        }
+        
+        if (!Array.isArray(result)) {
+            throw new Error("Неверный формат ответа от сервера");
+        }
+        
+        // Ensure all IDs in the set are numbers for strict comparison
+        const ownedSet = new Set(result.map(id => Number(id)));
+
+        renderTable(headers, rows, badgeMap, ownedSet);
+        updateStatus("Готово! Найденные бейджи отмечены зеленым.", "info");
+        setTimeout(() => updateStatus(""), 3000);
+
+    } catch (err) {
+        console.error("Full Error Context:", err);
+        updateStatus("Ошибка: " + err.message, "error");
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+function renderTable(headers, rows, badgeMap, ownedSet) {
+    const headerRow = document.getElementById("tableHeader");
+    const tableBody = document.getElementById("tableBody");
+    
+    headerRow.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
+    
+    let bodyHtml = "";
+    for (let i = 0; i < badgeMap.length; i++) {
+        const rowData = rows[i + 1];
+        const badgeId = badgeMap[i].badgeId;
+        // Compare as numbers
+        const isOwned = badgeId && ownedSet.has(Number(badgeId));
+        
+        bodyHtml += `<tr class="${isOwned ? 'badge-owned' : ''}">`;
+        for (let j = 0; j < headers.length; j++) {
+            bodyHtml += `<td>${rowData[j] || ""}</td>`;
+        }
+        bodyHtml += `</tr>`;
+    }
+    
+    tableBody.innerHTML = bodyHtml;
+    document.getElementById("tableContainer").style.display = "block";
 }
 </script>
 
